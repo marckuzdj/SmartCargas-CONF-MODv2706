@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.2</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.3</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -4149,76 +4149,73 @@ function selecionarTipoOcorrencia(tipo) {
             
             baixarRomaneioParaMemoriaLocal();
             
-          } else {
-            // 🛡️ SE HOUVER ITENS PARA SINCRONIZAR
-            if (window.lotePendentesSincronizacao && window.lotePendentesSincronizacao.length > 0) {
-              txtModo.innerHTML = "<span style='color: #d62828; font-weight: bold;'>Aguarde! Gravando dados na planilha...</span>";
-              if (badge) {
-                badge.style.background = "#e63946"; // Vermelho: Processando transação crítica
-                badge.style.color = "#ffffff";
-                badge.innerText = `Sincronizando ${window.lotePendentesSincronizacao.length}...`;
-              }
-              
-              // Força a interface a manter o botão travado durante o tráfego de dados
-              if (btnFinalizar) {
-                btnFinalizar.disabled = true;
-                btnFinalizar.style.opacity = "0.5";
-              }
-        
-              try {
-                const romaneioVal = document.getElementById("romaneio").value;
-                const usuario = document.getElementById("usuario").value;
-                
-                const response = await fetch(`${urlSheets}`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    action: "sincronizarLoteMemoria",
-                    romaneio: romaneioVal,
-                    conferente: usuario,
-                    barcodes: window.lotePendentesSincronizacao
-                  })
-                });
-                
-                const resJson = await response.json();
-                
-                if (resJson.success) {
-                  console.log(`%c[SYNC COMPLETE] ${resJson.atualizados} guardados na UF.`, "color: #198754; font-weight: bold;");
+              } else {
+                // 🛡️ SE HOUVER ITENS PARA SINCRONIZAR
+                if (window.lotePendentesSincronizacao && window.lotePendentesSincronizacao.length > 0) {
+                  txtModo.innerHTML = "<span style='color: #d62828; font-weight: bold;'>Aguarde! Gravando dados na planilha...</span>";
+                  if (badge) {
+                    badge.style.background = "#e63946"; 
+                    badge.style.color = "#ffffff";
+                    badge.innerText = `Sincronizando ${window.lotePendentesSincronizacao.length}...`;
+                  }
                   
-                  // Zera o lote pois a persistência foi confirmada pelo servidor
-                  window.lotePendentesSincronizacao = []; 
-                  
-                  if (badge) badge.style.display = "none";
+                  if (btnFinalizar) {
+                    btnFinalizar.disabled = true;
+                    btnFinalizar.style.opacity = "0.5";
+                  }
+            
+                  try {
+                    const romaneioVal = document.getElementById("romaneio").value;
+                    const usuario = document.getElementById("usuario").value;
+                    
+                    // Estrutura o payload compacto compatível com o interpretador doGet
+                    const payloadEstruturado = {
+                      romaneio: romaneioVal,
+                      conferente: usuario,
+                      barcodes: window.lotePendentesSincronizacao
+                    };
+            
+                    const parametrosUrl = new URLSearchParams({
+                      action: "sincronizarLoteMemoria",
+                      payload_json: JSON.stringify(payloadEstruturado)
+                    });
+                    
+                    // Executa a chamada na esteira estável de GET do ecossistema das UFs
+                    const response = await fetch(`${urlSheets}?${parametrosUrl.toString()}`);
+                    const resJson = await response.json();
+                    
+                    if (resJson.success) {
+                      console.log(`%c[SYNC COMPLETE] ${resJson.atualizados} guardados na UF.`, "color: #198754; font-weight: bold;");
+                      window.lotePendentesSincronizacao = []; 
+                      
+                      if (badge) badge.style.display = "none";
+                      txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
+                      
+                      if (btnFinalizar) {
+                        btnFinalizar.disabled = false;
+                        btnFinalizar.style.opacity = "1";
+                        btnFinalizar.style.cursor = "pointer";
+                      }
+                      
+                    } else {
+                      alert("⚠️ Servidor da UF rejeitou o lote: " + resJson.error);
+                      forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge);
+                    }
+                  } catch (err) {
+                    alert("🚨 Erro de conexão com a doca. Os bipes continuam salvos no celular. Tente desligar a chave novamente em uma área com sinal.");
+                    forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge);
+                  }
+                } else {
                   txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
-                  
-                  // 🔓 DESBLOQUEIO CIRÚRGICO APENAS AQUI: Sucesso absoluto na planilha
+                  if (badge) badge.style.display = "none";
                   if (btnFinalizar) {
                     btnFinalizar.disabled = false;
                     btnFinalizar.style.opacity = "1";
                     btnFinalizar.style.cursor = "pointer";
                   }
-                  
-                } else {
-                  // Se o servidor retornar erro, força a chave a voltar para ON e mantém travado
-                  alert("⚠️ Servidor da UF rejeitou o lote: " + resJson.error);
-                  forçarRetornoA ModoMemoriaAtivo(elemento, txtModo, badge);
                 }
-              } catch (err) {
-                // Se a internet cair no meio do descarregamento, protege os dados mantendo na RAM
-                alert("🚨 Erro de conexão com a doca. Os bipes continuam salvos no celular. Tente desligar a chave novamente em uma área com sinal.");
-                forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge);
-              }
-            } else {
-              // Caso o operador ligue e desligue o ON sem ter bipado nada, libera direto
-              txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
-              if (badge) badge.style.display = "none";
-              if (btnFinalizar) {
-                btnFinalizar.disabled = false;
-                btnFinalizar.style.opacity = "1";
-                btnFinalizar.style.cursor = "pointer";
               }
             }
-          }
-        }
         
         /**
          * Função auxiliar para reverter o estado do Switch caso a rede falhe, blindando os dados
