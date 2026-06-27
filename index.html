@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.3</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.4</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -624,14 +624,6 @@
             <div><label>Total Volumes</label><input type="text" id="total_volumes" readonly style="background: #f0f2f5;"></div>
         </div>
 
-        <!-- Campo para Leitor USB (visível apenas no Desktop) -->
-        <div id="container-leitor-usb" style="display: none; text-align: center; margin-bottom: 20px;">
-            <label style="font-weight: bold; color: var(--nu-purple);">Aguardando leitura USB...</label>
-            <input type="text" id="input-usb" placeholder="Bipe o código aqui..." 
-                   style="width: 100%; max-width: 300px; margin: 10px auto; display: block; border: 2px solid var(--nu-purple);">
-            <p style="font-size: 12px; color: #666;">O código será processado automaticamente ao bipar.</p>
-        </div>
-
         <!-- Chave Seletora de Modo de Performance Atualizada com Badge -->
         <div class="card" style="margin: 10px auto; padding: 15px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; position: relative;">
           <div>
@@ -647,6 +639,14 @@
             <input type="checkbox" id="chkModoPerformance" onchange="alternarModoPerformance(this)" style="opacity: 0; width: 0; height: 0;">
             <span class="slider-perf" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
           </label>
+        </div>
+       
+        <!-- Campo para Leitor USB (visível apenas no Desktop) -->
+        <div id="container-leitor-usb" style="display: none; text-align: center; margin-bottom: 20px;">
+            <label style="font-weight: bold; color: var(--nu-purple);">Aguardando leitura USB...</label>
+            <input type="text" id="input-usb" placeholder="Bipe o código aqui..." 
+                   style="width: 100%; max-width: 300px; margin: 10px auto; display: block; border: 2px solid var(--nu-purple);">
+            <p style="font-size: 12px; color: #666;">O código será processado automaticamente ao bipar.</p>
         </div>
        
         <div id="reader" style="display: none;"></div>
