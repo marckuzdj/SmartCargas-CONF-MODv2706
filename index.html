@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.9</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.10</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -2365,7 +2365,42 @@ async function registrarIntercorrencia() {
 
 // Função essencial para permitir o próximo romaneio sem recarregar a página
 function resetarInterface() {
-      // =========================================================================
+  // =========================================================================
+  // ⚡ INJEÇÃO CIRÚRGICA: RASTREAMENTO E DESATIVAÇÃO DO MODO ULTRA PERFORMANCE
+  // =========================================================================
+  if (typeof modoUltraPerformanceAtivo !== "undefined" && modoUltraPerformanceAtivo) {
+    console.log("⚠️ [RESET PERF] Modo Ultra Performance ativo detectado no reset. Expurgando memória local...");
+    
+    // 1. Desliga o motor de interceptação local de bipes
+    modoUltraPerformanceAtivo = false;
+    
+    // 2. Reseta o componente visual do switch para a posição OFF
+    const chkPerf = document.getElementById("chkModoPerformance");
+    if (chkPerf) chkPerf.checked = false;
+    
+    // 3. Restaura o texto informativo para o padrão online
+    const txtModo = document.getElementById("txt-modo-perf");
+    if (txtModo) txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
+    
+    // 4. Oculta o badge de alerta do lote acumulado
+    const badgePerf = document.getElementById("badge-pendentes");
+    if (badgePerf) {
+      badgePerf.style.display = "none";
+      badgePerf.innerText = "0 bipados";
+    }
+    
+    // 5. Hard clean nos buffers locais de armazenamento RAM
+    if (typeof cacheItensRomaneio !== "undefined") cacheItensRomaneio = {};
+    window.lotePendentesSincronizacao = [];
+    
+    console.log("✓ [RESET PERF] Estados locais purificados e prontos para o próximo ciclo.");
+    if (typeof dispararLogConf === "function") {
+      dispararLogConf("BIPAGEM_RESET_PERFORMANCE", "✓ [RESET PERF] Estados locais purificados e prontos para o próximo ciclo.");
+    }
+  }
+  // =========================================================================
+
+  // =========================================================================
   // 💣 HARD CLEAN SUPREMO: ZERA TODA A MEMÓRIA E CACHE NO FIM DO CICLO DO LOTE
   // =========================================================================
   // 1. Zera a variável global mestre de intercorrências para o próximo romaneio
@@ -2419,8 +2454,6 @@ function resetarInterface() {
         elContador.setAttribute("data-base", "0"); 
     }
 
-     
-    
     // 4. Reset das variáveis de controle e flags (MANTENDO FUNCIONALIDADES)
     enviandoDados = false;
     pulouComentarioFinal = false; 
@@ -2483,9 +2516,7 @@ function resetarInterface() {
         atualizarBarraProgresso(0); 
     }
 
-        // --- DESTRAVA DA ASSINATURA ---
     // --- DESTRAVA DA ASSINATURA ---
-    // Remova o 'const', pois areaAss já foi declarada no Item 6
     if (areaAss) {
         areaAss.style.opacity = "1";           // Restaura visibilidade
         areaAss.style.pointerEvents = "auto";  // DESTRAVA O TOQUE/DESENHO
@@ -2500,6 +2531,7 @@ function resetarInterface() {
     console.log("🏁 Reset completo: Interface limpa e barra de progresso pronta.");
     dispararLogConf("INTERFACE_RESET_COMPLETO", "Reset completo: Interface limpa e barra de progresso pronta.");
 }
+
 
 
 async function prepararFaseAssinatura(btn, areaAssinatura) {
