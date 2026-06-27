@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.6</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.7</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -4276,18 +4276,21 @@ function baixarRomaneioParaMemoriaLocal() {
         // Limpa o cache anterior para evitar lixo de memória RAM entre romaneios
         cacheItensRomaneio = {}; 
         
-        // Indexa os códigos de barra no formato de dicionário O(1) de alta performance
-        listaItens.forEach(function(item) {
-          // Trata se o item vier como objeto {FORNEC_LAST: "..."} ou apenas string
+        // ✂ ?? CORREÇÃO CIRÚRGICA: Preserva linhas zeradas ou vazias gerando chaves físicas exclusivas
+        listaItens.forEach(function(item, index) {
           const codigo = typeof item === 'object' ? (item.FORNEC_LAST || item.barcode || "") : item;
-          const codigoLimpo = codigo.toString().trim();
+          let codigoLimpo = codigo.toString().trim();
           
-          if (codigoLimpo) {
-            cacheItensRomaneio[codigoLimpo] = {
-              conferido: false
-            };
+          // Se for zero ou vazio, indexa pela posição da linha física na planilha para manter o total de 20
+          if (!codigoLimpo || codigoLimpo === "0") {
+            codigoLimpo = "LINHA_REF_" + (index + 2); 
           }
+          
+          cacheItensRomaneio[codigoLimpo] = {
+            conferido: false
+          };
         });
+
         
         const totalItensCarregados = Object.keys(cacheItensRomaneio).length;
         document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #2b9348; font-weight: bold;'>🟢 Modo Local Ativo (" + totalItensCarregados + " itens em memória)</span>";
