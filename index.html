@@ -191,6 +191,20 @@
         .btn-oc-primary { background-color: #007bff; color: white; }
         .btn-oc-secondary { background-color: #6c757d; color: white; }
         .btn-oc-danger { background-color: #dc3545; color: white; }
+
+          .switch-perf input:checked + .slider-perf { background-color: #8A05BE; }
+          .slider-perf:before {
+            position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px;
+            background-color: white; transition: .4s; border-radius: 50%;
+          }
+          .switch-perf input:checked + .slider-perf:before { transform: translateX(24px); }   
+
+           @keyframes pulse {
+                0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(230, 57, 70, 0.7); }
+                70% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(230, 57, 70, 0); }
+                100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(230, 57, 70, 0); }
+              }
+        
         
     </style>
 </head>
@@ -377,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.1</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.2</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -618,6 +632,23 @@
             <p style="font-size: 12px; color: #666;">O código será processado automaticamente ao bipar.</p>
         </div>
 
+        <!-- Chave Seletora de Modo de Performance Atualizada com Badge -->
+        <div class="card" style="margin: 10px auto; padding: 15px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; position: relative;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="color: var(--nu-purple); font-size: 14px;">Modo Ultra Performance</strong>
+              <!-- 🏷️ BADGE VISUAL DE ITENS PENDENTES -->
+              <span id="badge-pendentes" style="display: none; background: #e63946; color: white; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 20px; animation: pulse 1.5s infinite;">0 bipados</span>
+            </div>
+            <span id="txt-modo-perf" style="font-size: 12px; color: var(--nu-text-light);">Validação em tempo real desativada (Modo Online)</span>
+          </div>
+          
+          <label class="switch-perf" style="position: relative; display: inline-block; width: 50px; height: 26px;">
+            <input type="checkbox" id="chkModoPerformance" onchange="alternarModoPerformance(this)" style="opacity: 0; width: 0; height: 0;">
+            <span class="slider-perf" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px;"></span>
+          </label>
+        </div>
+       
         <div id="reader" style="display: none;"></div>
         <div id="status-info" style="background: #eee; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 10px;">Aguardando câmera...</div>
 
@@ -746,6 +777,9 @@ let romaneioSeguroBackup = "";
 // --- NOVA VARIÁVEL DE CONTROLE DE ENCADEAMENTO DE BIPAGEM ---
 let proximoCodigoObrigatorioPDC = null;
 //let UF_SELECIONADA_CONF = ""; // Guarda o estado escolhido globalmente no Front-CONF
+// Variáveis de controle para o Modo Memória (Cache do Navegador)
+var modoUltraPerformanceAtivo = false;
+var cacheItensRomaneio = {}; // Dicionário O(1) na memória do celular
 
 window.aparelhoUtilizadoNoLote = sessionStorage.getItem("dispositivoSessao") || (window.innerWidth > 768 ? "via USB" : "via Mobile");
 
@@ -1650,7 +1684,7 @@ async function atualizarStatusTempoReal() {
 }
 
 
-// --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS) ---
+// --- FUNÇÃO DE SCAN ADAPTADA (PROGRESSO ACUMULADO COM SYNC STATUS + MODO HÍBRIDO) ---
 async function onScanSuccess(decodedText) {
  if (validandoAgora) return;
  
@@ -1664,23 +1698,23 @@ async function onScanSuccess(decodedText) {
  const romaneioVal = document.getElementById("romaneio").value;
  const usuario = document.getElementById("usuario").value;
  const status = document.getElementById("status-info");
+ const contadorEl = document.getElementById("contador");
+ const totalPedidosGeral = parseInt(document.getElementById("total_pedidos").value) || 0;
+ const jaLidosNoSheets = parseInt(contadorEl.getAttribute("data-base")) || 0;
  
  // =========================================================================
  // 🩹 BARREIRA DE PRIORIDADE CRÍTICA (FAZ A CHECAGEM ANTES DA VALIDAÇÃO PADRÃO)
  // =========================================================================
- // =========================================================================
- // 🩹 BARREIRA DE PRIORIDADE CRÍTICA: BLINDAGEM CONTRA LOOP / DEADLOCK COLO
- // =========================================================================
  if (proximoCodigoObrigatorioPDC !== null) {
-   
    // 🌟 AJUSTE ABSOLUTO DE ESCAPE: Se a trava atual já foi lida no lote antes, liberta o fluxo
    if (Array.isArray(codigosLidos) && codigosLidos.includes(proximoCodigoObrigatorioPDC)) {
      console.log(`%c[PDC ENGINE] Quebra de loop! O código obrigatório "${proximoCodigoObrigatorioPDC}" já foi concluído anteriormente. Resetando trava.`, `color: #198754; font-weight: bold;`);
-     dispararLogConf("PDC_ENGINE_LOOP_BREAK", `[PDC ENGINE] Quebra de loop! O código obrigatório "${proximoCodigoObrigatorioPDC}" já foi concluído anteriormente. Resetando trava.`);  
+     if (typeof dispararLogConf === "function") {
+       dispararLogConf("PDC_ENGINE_LOOP_BREAK", `[PDC ENGINE] Quebra de loop! O código obrigatório "${proximoCodigoObrigatorioPDC}" já foi concluído anteriormente. Resetando trava.`);  
+     }
      proximoCodigoObrigatorioPDC = null;
      localStorage.removeItem("pdc_trava_backup");
    } else if (barcodeLimpo !== proximoCodigoObrigatorioPDC) {
-     
      // Mantém o bloqueio rígido padrão se o item prioritário realmente estiver pendente
      if (typeof tocarBeep === 'function') tocarBeep('erro');
      status.innerText = ` ⚠️ BIP INCORRETO! OBRIGATÓRIO: ${proximoCodigoObrigatorioPDC}`;
@@ -1692,104 +1726,157 @@ async function onScanSuccess(decodedText) {
        inputUSB.value = "";
        inputUSB.focus();
      }
-     return; // BARRADO DE VERDADE (SÓ OCORRE SE O ITEM REALMENTE FALTAR)
+     return; // BARRADO DE VERDADE
    }
  }
- // =========================================================================
 
- // =========================================================================
-
- // 3. RECUPERAÇÃO DA ÂNCORA: Lê o histórico sincronizado do Sheets
- const contadorEl = document.getElementById("contador");
- const jaLidosNoSheets = parseInt(contadorEl.getAttribute("data-base")) || 0;
- 
- // Validação local rápida de duplicidade na sessão
+ // Validação rápida de duplicidade na sessão local
  if (codigosLidos.includes(barcodeLimpo)) {
- if (typeof tocarBeep === 'function') tocarBeep('erro');
- status.innerText = " JÁ LIDO AGORA: " + barcodeLimpo;
- status.style.background = "#fff3cd";
- status.style.color = "#856404"; 
- return;
+   if (typeof tocarBeep === 'function') tocarBeep('erro');
+   status.innerText = " JÁ LIDO AGORA: " + barcodeLimpo;
+   status.style.background = "#fff3cd";
+   status.style.color = "#856404"; 
+   limparEFocusInputUSB();
+   return;
  }
- validandoAgora = true;
 
- // 🌟 ATUALIZAÇÃO DE CORES: ALTO CONTRASTE NA VALIDAÇÃO
+ // =========================================================================
+ // ⚡ FLUXO "ON" ACTIVATED: VALIDAÇÃO CIRÚRGICA DE ALTA PERFORMANCE EM MEMÓRIA
+ // =========================================================================
+ if (typeof modoUltraPerformanceAtivo !== "undefined" && modoUltraPerformanceAtivo) {
+   const itemLocal = cacheItensRomaneio[barcodeLimpo];
+   
+   if (!itemLocal) {
+     if (typeof tocarBeep === 'function') tocarBeep('erro');
+     status.innerText = " ❌ CÓDIGO NÃO PERTENCE AO ROMANEIO (LOCAL)";
+     status.style.background = "#f8d7da";
+     status.style.color = "#721c24";
+     limparEFocusInputUSB();
+     return;
+   }
+   
+   // Sucesso da validação em memória (O(1) - Resposta instantânea)
+   if (typeof tocarBeep === 'function') tocarBeep('sucesso');
+   codigosLidos.push(barcodeLimpo);
+   
+   // 📦 ACUMULADOR CIRÚRGICO: Armazena o código lido para persistência posterior (Bulk Sync)
+   if (!window.lotePendentesSincronizacao) window.lotePendentesSincronizacao = [];
+   window.lotePendentesSincronizacao.push(barcodeLimpo);
+
+   // 🏷️ ATUALIZAÇÃO DO CONTADOR DO BADGE
+  const badge = document.getElementById("badge-pendentes");
+  if (badge) {
+    badge.innerText = `${window.lotePendentesSincronizacao.length} aguardando sync`;
+    badge.style.display = "inline-block";
+    badge.style.background = "#ffb703"; // Cor de alerta: Dados em cache
+    badge.style.color = "#023047";
+  }  
+   
+   // Sincroniza o cálculo de progresso na interface
+   const totalAcumuladoLocal = jaLidosNoSheets + codigosLidos.length;
+   contadorEl.innerText = totalAcumuladoLocal;
+   if (typeof atualizarBarraProgresso === "function") atualizarBarraProgresso(totalAcumuladoLocal);
+   
+   // Insere na lista visual
+   const lista = document.getElementById("itens-lidos");
+   lista.innerHTML = `
+   <div class="item-codigo">
+     <b>Item ${totalAcumuladoLocal}</b> de ${totalPedidosGeral}<br>
+     <span>${barcodeLimpo}</span> <span style="color:var(--success)">✓</span>
+   </div>` + lista.innerHTML;
+   
+   status.innerText = " VALIDADO LOCALMENTE (MÓDULO RAM)";
+   status.style.background = "#d4edda";
+   status.style.color = "#155724";
+   
+   // Motor PDC Local Simples: Tenta prever se há uma trava sequencial em memória
+   // Como está rodando local, limpa ou atualiza o backup de trava nativa se aplicável
+   localStorage.removeItem("pdc_trava_backup");
+   proximoCodigoObrigatorioPDC = null; 
+   
+   limparEFocusInputUSB();
+   return; 
+ }
+
+ // =========================================================================
+ // 🌐 FLUXO "OFF": LOGÍSTICA ONLINE TRADICIONAL (TRIGGER SCRIPT POR SCRIPT)
+ // =========================================================================
+ validandoAgora = true;
  status.innerText = " Validando: " + barcodeLimpo + "...";
  status.style.background = "#dc3545"; 
  status.style.color = "#ffffff";     
 
  try {
- const params = new URLSearchParams({
- action: "validarBarcode",
- barcode: barcodeLimpo,
- romaneio: romaneioVal,
- conferente: usuario,
- confirmado: "OK",
- data_conferencia: new Date().toLocaleString("pt-BR") 
- });
- 
- const response = await fetch(`${urlSheets}?${params.toString()}`);
- const result = await response.json();
- 
- if (result.valid) {
- if (typeof tocarBeep === 'function') tocarBeep('sucesso');
- codigosLidos.push(barcodeLimpo);
- 
- // --- CÁLCULO DO PROGRESSO REAL ACUMULADO LOCAL ---
- const totalAcumulado = jaLidosNoSheets + codigosLidos.length;
- const totalPedidosGeral = parseInt(document.getElementById("total_pedidos").value) || 0;
- 
- contadorEl.innerText = totalAcumulado;
- if (typeof atualizarBarraProgresso === "function") {
- atualizarBarraProgresso(totalAcumulado);
- }
+   const params = new URLSearchParams({
+     action: "validarBarcode",
+     barcode: barcodeLimpo,
+     romaneio: romaneioVal,
+     conferente: usuario,
+     confirmado: "OK",
+     data_conferencia: new Date().toLocaleString("pt-BR") 
+   });
+   
+   const response = await fetch(`${urlSheets}?${params.toString()}`);
+   const result = await response.json();
+   
+   if (result.valid) {
+     if (typeof tocarBeep === 'function') tocarBeep('sucesso');
+     codigosLidos.push(barcodeLimpo);
+     
+     const totalAcumulado = jaLidosNoSheets + codigosLidos.length;
+     contadorEl.innerText = totalAcumulado;
+     if (typeof atualizarBarraProgresso === "function") {
+       atualizarBarraProgresso(totalAcumulado);
+     }
 
- const lista = document.getElementById("itens-lidos");
- lista.innerHTML = `
- <div class="item-codigo">
- <b>Item ${totalAcumulado}</b> de ${totalPedidosGeral}<br>
- <span>${barcodeLimpo}</span> <span style="color:var(--success)">✓</span>
- </div>` + lista.innerHTML;
- 
- status.innerText = " VALIDADO E ATUALIZADO";
- status.style.background = "#d4edda";
- status.style.color = "#155724"; 
+     const lista = document.getElementById("itens-lidos");
+     lista.innerHTML = `
+     <div class="item-codigo">
+       <b>Item ${totalAcumulado}</b> de ${totalPedidosGeral}<br>
+       <span>${barcodeLimpo}</span> <span style="color:var(--success)">✓</span>
+     </div>` + lista.innerHTML;
+     
+     status.innerText = " VALIDADO E ATUALIZADO";
+     status.style.background = "#d4edda";
+     status.style.color = "#155724"; 
 
- // =========================================================================
- // 🩹 ACIONAMENTO ASSÍNCRONO DA PRIORIDADE EM TEMPO REAL
- // =========================================================================
- // Consulta o servidor para saber se o item validado gerou restrições na planilha
- proximoCodigoObrigatorioPDC = await calcularProximoCodigoPrioritario(barcodeLimpo, romaneioVal);
- 
- if (proximoCodigoObrigatorioPDC !== null) {
-   localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
- } else {
-   localStorage.removeItem("pdc_trava_backup");
- }
- // =========================================================================
-
- // =========================================================================
- 
- } else {
- if (typeof tocarBeep === 'function') tocarBeep('erro');
- status.innerText = " " + (result.error || "INVÁLIDO");
- status.style.background = "#f8d7da";
- status.style.color = "#721c24"; 
- }
+     // 🩹 ACIONAMENTO ASSÍNCRONO DA PRIORIDADE EM TEMPO REAL (PDC ENGINE ONLINE)
+     proximoCodigoObrigatorioPDC = await calcularProximoCodigoPrioritario(barcodeLimpo, romaneioVal);
+     
+     if (proximoCodigoObrigatorioPDC !== null) {
+       localStorage.setItem("pdc_trava_backup", proximoCodigoObrigatorioPDC);
+     } else {
+       localStorage.removeItem("pdc_trava_backup");
+     }
+     
+   } else {
+     if (typeof tocarBeep === 'function') tocarBeep('erro');
+     status.innerText = " " + (result.error || "INVÁLIDO");
+     status.style.background = "#f8d7da";
+     status.style.color = "#721c24"; 
+   }
  } catch (error) {
- if (typeof tocarBeep === 'function') tocarBeep('erro');
- status.innerText = " Erro de conexão";
- status.style.background = "#f8d7da";
- status.style.color = "#721c24";
+   if (typeof tocarBeep === 'function') tocarBeep('erro');
+   status.innerText = " Erro de conexão";
+   status.style.background = "#f8d7da";
+   status.style.color = "#721c24";
  } finally {
- const inputUSB = document.getElementById("input-usb");
- if (inputUSB) {
- inputUSB.value = "";
- inputUSB.focus();
- }
- setTimeout(() => { validandoAgora = false; }, 800);
+   limparEFocusInputUSB();
+   setTimeout(() => { validandoAgora = false; }, 800);
  }
 }
+
+/**
+ * Função utilitária interna para evitar duplicação de limpeza do leitor de mão USB
+ */
+function limparEFocusInputUSB() {
+  const inputUSB = document.getElementById("input-usb");
+  if (inputUSB) {
+    inputUSB.value = "";
+    inputUSB.focus();
+  }
+}
+
 
 
 
@@ -4032,8 +4119,168 @@ function selecionarTipoOcorrencia(tipo) {
             fetch(url).catch(err => console.error("Erro silencioso ao registrar log de pátio:", err));
         }
 
+        /**
+         * FUNÇÃO EXCLUSIVA: Limpa a memória/cache local e alterna os estados do app
+         */
+        /**
+         * GERENCIADOR DO MODO HÍBRIDO COM TRAVA DE SEGURANÇA E SINCRONIZAÇÃO EM LOTE
+         */
+        /**
+         * GERENCIADOR DO MODO HÍBRIDO COM TRAVA DE SEGURANÇA TOTAL E LIBERAÇÃO PÓS-SYNC
+         */
+        async function alternarModoPerformance(elemento) {
+          modoUltraPerformanceAtivo = elemento.checked;
+          const txtModo = document.getElementById("txt-modo-perf");
+          const badge = document.getElementById("badge-pendentes");
+          const btnFinalizar = document.getElementById("btnFinalizarLote");
+          
+          if (modoUltraPerformanceAtivo) {
+            txtModo.innerHTML = "<span style='color: #2b9348; font-weight: bold;'>Carregando dados na memória...</span>";
+            
+            // 🔒 BLOQUEIO INICIAL EXIGIDO: Impede finalização ao entrar no modo RAM
+            if (btnFinalizar) {
+              btnFinalizar.disabled = true;
+              btnFinalizar.style.opacity = "0.5";
+              btnFinalizar.style.cursor = "not-allowed";
+            }
+            
+            window.lotePendentesSincronizacao = []; 
+            if (badge) badge.style.display = "none";
+            
+            baixarRomaneioParaMemoriaLocal();
+            
+          } else {
+            // 🛡️ SE HOUVER ITENS PARA SINCRONIZAR
+            if (window.lotePendentesSincronizacao && window.lotePendentesSincronizacao.length > 0) {
+              txtModo.innerHTML = "<span style='color: #d62828; font-weight: bold;'>Aguarde! Gravando dados na planilha...</span>";
+              if (badge) {
+                badge.style.background = "#e63946"; // Vermelho: Processando transação crítica
+                badge.style.color = "#ffffff";
+                badge.innerText = `Sincronizando ${window.lotePendentesSincronizacao.length}...`;
+              }
+              
+              // Força a interface a manter o botão travado durante o tráfego de dados
+              if (btnFinalizar) {
+                btnFinalizar.disabled = true;
+                btnFinalizar.style.opacity = "0.5";
+              }
         
+              try {
+                const romaneioVal = document.getElementById("romaneio").value;
+                const usuario = document.getElementById("usuario").value;
+                
+                const response = await fetch(`${urlSheets}`, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    action: "sincronizarLoteMemoria",
+                    romaneio: romaneioVal,
+                    conferente: usuario,
+                    barcodes: window.lotePendentesSincronizacao
+                  })
+                });
+                
+                const resJson = await response.json();
+                
+                if (resJson.success) {
+                  console.log(`%c[SYNC COMPLETE] ${resJson.atualizados} guardados na UF.`, "color: #198754; font-weight: bold;");
+                  
+                  // Zera o lote pois a persistência foi confirmada pelo servidor
+                  window.lotePendentesSincronizacao = []; 
+                  
+                  if (badge) badge.style.display = "none";
+                  txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
+                  
+                  // 🔓 DESBLOQUEIO CIRÚRGICO APENAS AQUI: Sucesso absoluto na planilha
+                  if (btnFinalizar) {
+                    btnFinalizar.disabled = false;
+                    btnFinalizar.style.opacity = "1";
+                    btnFinalizar.style.cursor = "pointer";
+                  }
+                  
+                } else {
+                  // Se o servidor retornar erro, força a chave a voltar para ON e mantém travado
+                  alert("⚠️ Servidor da UF rejeitou o lote: " + resJson.error);
+                  forçarRetornoA ModoMemoriaAtivo(elemento, txtModo, badge);
+                }
+              } catch (err) {
+                // Se a internet cair no meio do descarregamento, protege os dados mantendo na RAM
+                alert("🚨 Erro de conexão com a doca. Os bipes continuam salvos no celular. Tente desligar a chave novamente em uma área com sinal.");
+                forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge);
+              }
+            } else {
+              // Caso o operador ligue e desligue o ON sem ter bipado nada, libera direto
+              txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
+              if (badge) badge.style.display = "none";
+              if (btnFinalizar) {
+                btnFinalizar.disabled = false;
+                btnFinalizar.style.opacity = "1";
+                btnFinalizar.style.cursor = "pointer";
+              }
+            }
+          }
+        }
         
+        /**
+         * Função auxiliar para reverter o estado do Switch caso a rede falhe, blindando os dados
+         */
+        function forçarRetornoAModoMemoriaAtivo(inputCheckbox, labelTxt, badgeEl) {
+          modoUltraPerformanceAtivo = true;
+          inputCheckbox.checked = true; // Força o switch visual a continuar ligado
+          labelTxt.innerHTML = "<span style='color: #e63946; font-weight:bold;'>Falha na sincronização. Modo RAM reativado para proteção.</span>";
+          if (badgeEl) {
+            badgeEl.style.background = "#ffb703";
+            badgeEl.style.color = "#023047";
+            badgeEl.innerText = `${window.lotePendentesSincronizacao.length} retidos`;
+          }
+        }
+
+
+        
+        /**
+         * Carrega a tabela do romaneio ativo para a memória RAM do navegador
+         */
+        function baixarRomaneioParaMemoriaLocal() {
+          var romaneioAtivo = document.getElementById("tituloOcorrenciaRomaneio").innerText.split("-")[1]?.trim(); // Captura o romaneio ativo da UI
+          if (!romaneioAtivo) {
+            alert("Por favor, selecione ou carregue um Romaneio antes de ativar este modo.");
+            document.getElementById("chkModoPerformance").checked = false;
+            alternarModoPerformance(document.getElementById("chkModoPerformance"));
+            return;
+          }
+          
+          // Reutiliza sua rota nativa existente 'getTodosItensRomaneio' que baixa os dados de forma otimizada
+          var urlWebApp = urlBackendUfAtiva + "?action=getTodosItensRomaneio&romaneio=" + encodeURIComponent(romaneioAtivo);
+          
+          fetch(urlWebApp)
+            .then(response => response.json())
+            .then(data => {
+              if (data.sucesso) {
+                // Converte a lista limpa em um objeto indexado para busca instantânea em memória
+                data.itens.forEach(function(codigoBarras) {
+                  cacheItensRomaneio[codigoBarras.trim()] = {
+                    conferido: false // Estado local da conferência na memória
+                  };
+                });
+                
+                document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #2b9348;'>Modo Local Ativo (" + data.itens.length + " itens em memória)</span>";
+                console.log(" [MEMÓRIA] Romaneio sincronizado localmente com sucesso.");
+              } else {
+                alert("Erro ao baixar romaneio: " + data.error);
+                desativarModoPerformanceManual();
+              }
+            })
+            .catch(err => {
+              alert("Falha de rede ao tentar espelhar dados na memória.");
+              desativarModoPerformanceManual();
+            });
+        }
+        
+        function desativarModoPerformanceManual() {
+          var chk = document.getElementById("chkModoPerformance");
+          chk.checked = false;
+          alternarModoPerformance(chk);
+        }
+            
         
         
         
