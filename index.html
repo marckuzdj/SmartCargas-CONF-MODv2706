@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.8</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.9</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -4131,19 +4131,32 @@ function selecionarTipoOcorrencia(tipo) {
         /**
          * GERENCIADOR DO MODO HÍBRIDO COM TRAVA DE SEGURANÇA TOTAL E LIBERAÇÃO PÓS-SYNC
          */
+        /**
+         * GERENCIADOR DO MODO HÍBRIDO COM BLOQUEIO RÍGIDO DO BOTÃO DE FECHAMENTO
+         */
         async function alternarModoPerformance(elemento) {
           modoUltraPerformanceAtivo = elemento.checked;
           const txtModo = document.getElementById("txt-modo-perf");
           const badge = document.getElementById("badge-pendentes");
-          const btnFinalizar = document.getElementById("btnFinalizarLote");
           
+          // ⚡ CAPTURA DO BOTÃO NATIVO: Localiza o botão "Finalizar Lote" pelas suas classes operacionais
+          // Se o seu botão possuir um ID próprio (ex: id="finalizar-lote-id"), substitua o seletor abaixo por ele para maior precisão
+          const btnFinalizar = document.querySelector("button[onclick*='finalizarLote']") || document.getElementById("btnFinalizarLote");
+          
+          // Captura a quantidade de leituras acumuladas na sessão atual do modo RAM
+          const totalLidosNoLote = window.lotePendentesSincronizacao ? window.lotePendentesSincronizacao.length : 0;
+        
+          // =========================================================================
+          // 🟢 CHAVE MUDOU PARA "ON": TRAVA IMEDIATA DO BOTÃO
+          // =========================================================================
           if (modoUltraPerformanceAtivo) {
-            txtModo.innerHTML = "<span style='color: #2b9348; font-weight: bold;'>Carregando dados na memória...</span>";
+            txtModo.innerHTML = "<span style='color: #660099; font-weight: bold;'>Carregando dados na memória...</span>";
             
-            // 🔒 BLOQUEIO INICIAL EXIGIDO: Impede finalização ao entrar no modo RAM
+            // ⚙️ CONDIÇÃO 3: Transforma o botão em cinza e bloqueia fisicamente o clique
             if (btnFinalizar) {
               btnFinalizar.disabled = true;
-              btnFinalizar.style.opacity = "0.5";
+              window.corOriginalBotaoFinalizar = btnFinalizar.style.backgroundColor || ""; // Salva a cor roxa original
+              btnFinalizar.style.setProperty("background-color", "#888888", "important"); // Força o Cinza
               btnFinalizar.style.cursor = "not-allowed";
             }
             
@@ -4152,89 +4165,99 @@ function selecionarTipoOcorrencia(tipo) {
             
             baixarRomaneioParaMemoriaLocal();
             
-              } else {
-                // 🛡️ SE HOUVER ITENS PARA SINCRONIZAR
-                if (window.lotePendentesSincronizacao && window.lotePendentesSincronizacao.length > 0) {
-                  txtModo.innerHTML = "<span style='color: #d62828; font-weight: bold;'>Aguarde! Gravando dados na planilha...</span>";
-                  if (badge) {
-                    badge.style.background = "#e63946"; 
-                    badge.style.color = "#ffffff";
-                    badge.innerText = `Sincronizando ${window.lotePendentesSincronizacao.length}...`;
-                  }
-                  
-                  if (btnFinalizar) {
-                    btnFinalizar.disabled = true;
-                    btnFinalizar.style.opacity = "0.5";
-                  }
+          } else {
+            // =========================================================================
+            // 🔴 CHAVE MUDOU PARA "OFF": MOTOR DE SINCRONIZAÇÃO E DESBLOQUEIO
+            // =========================================================================
             
-                  try {
-                    const romaneioVal = document.getElementById("romaneio").value;
-                    const usuario = document.getElementById("usuario").value;
-                    
-                    // Estrutura o payload compacto compatível com o interpretador doGet
-                    const payloadEstruturado = {
-                      romaneio: romaneioVal,
-                      conferente: usuario,
-                      barcodes: window.lotePendentesSincronizacao
-                    };
-            
-                    const parametrosUrl = new URLSearchParams({
-                      action: "sincronizarLoteMemoria",
-                      payload_json: JSON.stringify(payloadEstruturado)
-                    });
-                    
-                    // Executa a chamada na esteira estável de GET do ecossistema das UFs
-                   // const response = await fetch(`${urlSheets}?${parametrosUrl.toString()}`);
-                    // Na linha do fetch dentro do bloco ELSE da função alternarModoPerformance:
-                      const response = await fetch(`${urlSheets}?${parametrosUrl.toString()}`);
-                      const resJson = await response.json();
-                    
-                    if (resJson.success) {
-                      console.log(`%c[SYNC COMPLETE] ${resJson.atualizados} guardados na UF.`, "color: #198754; font-weight: bold;");
-                      window.lotePendentesSincronizacao = []; 
-                      
-                      if (badge) badge.style.display = "none";
-                      txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
-                      
-                      if (btnFinalizar) {
-                        btnFinalizar.disabled = false;
-                        btnFinalizar.style.opacity = "1";
-                        btnFinalizar.style.cursor = "pointer";
-                      }
-                      
-                    } else {
-                      alert("⚠️ Servidor da UF rejeitou o lote: " + resJson.error);
-                      forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge);
-                    }
-                  } catch (err) {
-                    alert("🚨 Erro de conexão com a doca. Os bipes continuam salvos no celular. Tente desligar a chave novamente em uma área com sinal.");
-                    forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge);
-                  }
-                } else {
-                  txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
+            // ⚙️ CONDIÇÃO 1: Se houver leituras acumuladas no lote (> 0)
+            if (totalLidosNoLote > 0) {
+              txtModo.innerHTML = "<span style='color: #d62828; font-weight: bold;'>Aguarde! Gravando dados na planilha...</span>";
+              if (badge) {
+                badge.style.background = "#e63946"; 
+                badge.innerText = `Sincronizando ${totalLidosNoLote}...`;
+              }
+              
+              // Mantém cinza e travado rigorosamente durante o tráfego da rede
+              if (btnFinalizar) {
+                btnFinalizar.disabled = true;
+                btnFinalizar.style.setProperty("background-color", "#888888", "important");
+              }
+        
+              try {
+                const romaneioVal = document.getElementById("romaneio").value;
+                const usuario = document.getElementById("usuario").value;
+                
+                const payloadEstruturado = {
+                  romaneio: romaneioVal,
+                  conferente: usuario,
+                  barcodes: window.lotePendentesSincronizacao
+                };
+        
+                const parametrosUrl = new URLSearchParams({
+                  action: "sincronizarLoteMemoria",
+                  payload_json: JSON.stringify(payloadEstruturado)
+                });
+                
+                const response = await fetch(`${urlSheets}?${parametrosUrl.toString()}`);
+                const resJson = await response.json();
+                
+                if (resJson.success) {
+                  console.log(`%c[SYNC COMPLETE] Lote persistido com sucesso.`, "color: #198754; font-weight: bold;");
+                  window.lotePendentesSincronizacao = []; 
                   if (badge) badge.style.display = "none";
+                  
+                  // ⚙️ CONDIÇÃO 4: Exibe a mensagem de sucesso exigida ao final da sincronização
+                  txtModo.innerHTML = "<span style='color: #2b9348; font-weight: bold;'>Sincronização finalizada. Clique em 'Finalizar Lote'</span>";
+                  
+                  // 🔓 LIBERAÇÃO APÓS GRAVAÇÃO: Restaura a cor original e destrava o botão
                   if (btnFinalizar) {
                     btnFinalizar.disabled = false;
-                    btnFinalizar.style.opacity = "1";
+                    btnFinalizar.style.backgroundColor = window.corOriginalBotaoFinalizar || "";
                     btnFinalizar.style.cursor = "pointer";
                   }
+                  
+                } else {
+                  alert("⚠️ Servidor da UF rejeitou o lote: " + resJson.error);
+                  forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge, btnFinalizar);
                 }
+              } catch (err) {
+                alert("🚨 Erro de conexão com a doca. Os bipes continuam salvos no celular.");
+                forçarRetornoAModoMemoriaAtivo(elemento, txtModo, badge, btnFinalizar);
+              }
+            } else {
+              // ⚙️ CONDIÇÃO 2: Se NÃO houver leituras acumuladas (Contador == 0), destrava imediatamente
+              txtModo.innerText = "Validação em tempo real desativada (Modo Online)";
+              if (badge) badge.style.display = "none";
+              
+              if (btnFinalizar) {
+                btnFinalizar.disabled = false;
+                btnFinalizar.style.backgroundColor = window.corOriginalBotaoFinalizar || "";
+                btnFinalizar.style.cursor = "pointer";
               }
             }
-        
-        /**
-         * Função auxiliar para reverter o estado do Switch caso a rede falhe, blindando os dados
-         */
-        function forçarRetornoAModoMemoriaAtivo(inputCheckbox, labelTxt, badgeEl) {
-          modoUltraPerformanceAtivo = true;
-          inputCheckbox.checked = true; // Força o switch visual a continuar ligado
-          labelTxt.innerHTML = "<span style='color: #e63946; font-weight:bold;'>Falha na sincronização. Modo RAM reativado para proteção.</span>";
-          if (badgeEl) {
-            badgeEl.style.background = "#ffb703";
-            badgeEl.style.color = "#023047";
-            badgeEl.innerText = `${window.lotePendentesSincronizacao.length} retidos`;
           }
         }
+        
+            /**
+             * Função auxiliar de segurança para manter o botão cinza se a sincronização quebrar no meio do caminho
+             */
+            function forçarRetornoAModoMemoriaAtivo(inputCheckbox, labelTxt, badgeEl, btnFinalizar) {
+              modoUltraPerformanceAtivo = true;
+              inputCheckbox.checked = true; 
+              labelTxt.innerHTML = "<span style='color: #e63946; font-weight:bold;'>Falha na sincronização. Modo RAM reativado para proteção.</span>";
+              
+              if (badgeEl) {
+                badgeEl.style.background = "#ffb703";
+                badgeEl.innerText = `${window.lotePendentesSincronizacao.length} retidos`;
+              }
+              
+              if (btnFinalizar) {
+                btnFinalizar.disabled = true;
+                btnFinalizar.style.setProperty("background-color", "#888888", "important");
+                btnFinalizar.style.cursor = "not-allowed";
+              }
+            }
 
 
         
