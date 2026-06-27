@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.4</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.5</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -4236,44 +4236,70 @@ function selecionarTipoOcorrencia(tipo) {
 
 
         
-        /**
-         * Carrega a tabela do romaneio ativo para a memória RAM do navegador
-         */
-        function baixarRomaneioParaMemoriaLocal() {
-          var romaneioAtivo = document.getElementById("tituloOcorrenciaRomaneio").innerText.split("-")[1]?.trim(); // Captura o romaneio ativo da UI
-          if (!romaneioAtivo) {
-            alert("Por favor, selecione ou carregue um Romaneio antes de ativar este modo.");
-            document.getElementById("chkModoPerformance").checked = false;
-            alternarModoPerformance(document.getElementById("chkModoPerformance"));
-            return;
+/**
+ * Carrega a tabela do romaneio ativo para a memória RAM do navegador
+ */
+function baixarRomaneioParaMemoriaLocal() {
+  // ✂️ CORREÇÃO CIRÚRGICA: Captura o valor diretamente do select 'romaneio'
+  const selectRomaneio = document.getElementById("romaneio");
+  var romaneioAtivo = selectRomaneio ? selectRomaneio.value.toString().trim() : "";
+  
+  if (!romaneioAtivo) {
+    alert("Por favor, selecione ou carregue um Romaneio antes de ativar este modo.");
+    const chk = document.getElementById("chkModoPerformance");
+    if (chk) {
+      chk.checked = false;
+      // Reseta o texto visual se falhar
+      document.getElementById("txt-modo-perf").innerText = "Validação em tempo real desativada (Modo Online)";
+    }
+    return;
+  }
+  
+  // Feedback visual inicial de carregamento roxo Vivo
+  document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #660099; font-weight: bold;'>Carregando dados na memória...</span>";
+  
+  // Constrói a URL usando sua estrutura nativa de ambiente dinâmico
+  var urlWebApp = urlBackendUfAtiva + "?action=getTodosItensRomaneio&romaneio=" + encodeURIComponent(romaneioAtivo);
+  
+  fetch(urlWebApp)
+    .then(response => response.json())
+    .then(data => {
+      // 🌟 ADAPTAÇÃO DE FORMATO: Trata se o retorno vier como .success ou .sucesso
+      const ehSucesso = data.success || data.sucesso;
+      const listaItens = data.itens || [];
+
+      if (ehSucesso) {
+        // Limpa o cache anterior para evitar lixo de memória RAM entre romaneios
+        cacheItensRomaneio = {}; 
+        
+        // Indexa os códigos de barra no formato de dicionário O(1) de alta performance
+        listaItens.forEach(function(item) {
+          // Trata se o item vier como objeto {FORNEC_LAST: "..."} ou apenas string
+          const codigo = typeof item === 'object' ? (item.FORNEC_LAST || item.barcode || "") : item;
+          const codigoLimpo = codigo.toString().trim();
+          
+          if (codigoLimpo) {
+            cacheItensRomaneio[codigoLimpo] = {
+              conferido: false
+            };
           }
-          
-          // Reutiliza sua rota nativa existente 'getTodosItensRomaneio' que baixa os dados de forma otimizada
-          var urlWebApp = urlBackendUfAtiva + "?action=getTodosItensRomaneio&romaneio=" + encodeURIComponent(romaneioAtivo);
-          
-          fetch(urlWebApp)
-            .then(response => response.json())
-            .then(data => {
-              if (data.sucesso) {
-                // Converte a lista limpa em um objeto indexado para busca instantânea em memória
-                data.itens.forEach(function(codigoBarras) {
-                  cacheItensRomaneio[codigoBarras.trim()] = {
-                    conferido: false // Estado local da conferência na memória
-                  };
-                });
-                
-                document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #2b9348;'>Modo Local Ativo (" + data.itens.length + " itens em memória)</span>";
-                console.log(" [MEMÓRIA] Romaneio sincronizado localmente com sucesso.");
-              } else {
-                alert("Erro ao baixar romaneio: " + data.error);
-                desativarModoPerformanceManual();
-              }
-            })
-            .catch(err => {
-              alert("Falha de rede ao tentar espelhar dados na memória.");
-              desativarModoPerformanceManual();
-            });
-        }
+        });
+        
+        const totalItensCarregados = Object.keys(cacheItensRomaneio).length;
+        document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #2b9348; font-weight: bold;'>🟢 Modo Local Ativo (" + totalItensCarregados + " itens em memória)</span>";
+        console.log(" [MEMÓRIA] Romaneio " + romaneioAtivo + " sincronizado localmente com sucesso. Total: " + totalItensCarregados);
+      } else {
+        alert("Erro ao baixar romaneio do servidor: " + (data.error || data.mensagem || "Desconhecido"));
+        desativarModoPerformanceManual();
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Falha de rede ao tentar espelhar dados na memória da doca.");
+      desativarModoPerformanceManual();
+    });
+}
+
         
         function desativarModoPerformanceManual() {
           var chk = document.getElementById("chkModoPerformance");
