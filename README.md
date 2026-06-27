@@ -1,0 +1,1 @@
+# SmartCargas-CONF-MODv2706
