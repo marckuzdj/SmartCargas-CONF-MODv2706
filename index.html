@@ -391,7 +391,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 11.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
         </svg>
       </div>
-      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.7</h2>
+      <h2 style="color: #8A05BE; margin: 0; font-size: 22px; font-weight: bold;">Conferência de Carga v2706.8</h2>
       <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Selecione o estado de operação em doca</p>
     </div>
 
@@ -4238,74 +4238,67 @@ function selecionarTipoOcorrencia(tipo) {
 
 
         
-/**
- * Carrega a tabela do romaneio ativo para a memória RAM do navegador
- */
-function baixarRomaneioParaMemoriaLocal() {
-  // ✂️ CORREÇÃO CIRÚRGICA: Captura o valor diretamente do select 'romaneio'
-  const selectRomaneio = document.getElementById("romaneio");
-  var romaneioAtivo = selectRomaneio ? selectRomaneio.value.toString().trim() : "";
-  
-  if (!romaneioAtivo) {
-    alert("Por favor, selecione ou carregue um Romaneio antes de ativar este modo.");
-    const chk = document.getElementById("chkModoPerformance");
-    if (chk) {
-      chk.checked = false;
-      // Reseta o texto visual se falhar
-      document.getElementById("txt-modo-perf").innerText = "Validação em tempo real desativada (Modo Online)";
-    }
-    return;
-  }
-  
-  // Feedback visual inicial de carregamento roxo Vivo
-  document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #660099; font-weight: bold;'>Carregando dados na memória...</span>";
-  
-  // Constrói a URL usando sua estrutura nativa de ambiente dinâmico
-  //var urlWebApp = urlBackendUfAtiva + "?action=getTodosItensRomaneio&romaneio=" + encodeURIComponent(romaneioAtivo);
-  // ✂️ CORREÇÃO CIRÚRGICA DEFINITIVA: Vincula ao barramento unificado já alimentado pelo SCRIPTS_POR_UF
-    var urlWebApp = urlSheets + "?action=getTodosItensRomaneio&romaneio=" + encodeURIComponent(romaneioAtivo);
-
-  fetch(urlWebApp)
-    .then(response => response.json())
-    .then(data => {
-      // 🌟 ADAPTAÇÃO DE FORMATO: Trata se o retorno vier como .success ou .sucesso
-      const ehSucesso = data.success || data.sucesso;
-      const listaItens = data.itens || [];
-
-      if (ehSucesso) {
-        // Limpa o cache anterior para evitar lixo de memória RAM entre romaneios
-        cacheItensRomaneio = {}; 
-        
-        // ✂ ?? CORREÇÃO CIRÚRGICA: Preserva linhas zeradas ou vazias gerando chaves físicas exclusivas
-        listaItens.forEach(function(item, index) {
-          const codigo = typeof item === 'object' ? (item.FORNEC_LAST || item.barcode || "") : item;
-          let codigoLimpo = codigo.toString().trim();
+        /**
+         * Carrega a tabela do romaneio ativo para a memória RAM do navegador usando a rota exclusiva
+         */
+        function baixarRomaneioParaMemoriaLocal() {
+          const selectRomaneio = document.getElementById("romaneio");
+          var romaneioAtivo = selectRomaneio ? selectRomaneio.value.toString().trim() : "";
           
-          // Se for zero ou vazio, indexa pela posição da linha física na planilha para manter o total de 20
-          if (!codigoLimpo || codigoLimpo === "0") {
-            codigoLimpo = "LINHA_REF_" + (index + 2); 
+          if (!romaneioAtivo) {
+            alert("Por favor, selecione ou carregue um Romaneio antes de ativar este modo.");
+            const chk = document.getElementById("chkModoPerformance");
+            if (chk) {
+              chk.checked = false;
+              document.getElementById("txt-modo-perf").innerText = "Validação em tempo real desativada (Modo Online)";
+            }
+            return;
           }
           
-          cacheItensRomaneio[codigoLimpo] = {
-            conferido: false
-          };
-        });
-
+          document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #660099; font-weight: bold;'>Carregando dados na memória...</span>";
+          
+          // ⚡ MUDANÇA CIRÚRGICA: Dispara contra a nova action de linhas brutas
+          var urlWebApp = urlSheets + "?action=getLinhasFisicasRomaneio&romaneio=" + encodeURIComponent(romaneioAtivo);
+          
+          fetch(urlWebApp)
+            .then(response => response.json())
+            .then(data => {
+              const ehSucesso = data.success || data.sucesso;
+              const listaItens = data.itens || [];
         
-        const totalItensCarregados = Object.keys(cacheItensRomaneio).length;
-        document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #2b9348; font-weight: bold;'>🟢 Modo Local Ativo (" + totalItensCarregados + " itens em memória)</span>";
-        console.log(" [MEMÓRIA] Romaneio " + romaneioAtivo + " sincronizado localmente com sucesso. Total: " + totalItensCarregados);
-      } else {
-        alert("Erro ao baixar romaneio do servidor: " + (data.error || data.mensagem || "Desconhecido"));
-        desativarModoPerformanceManual();
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Falha de rede ao tentar espelhar dados na memória da doca.");
-      desativarModoPerformanceManual();
-    });
-}
+              if (ehSucesso) {
+                cacheItensRomaneio = {}; // Reseta cache local
+                
+                // Alimenta o dicionário mapeando os códigos de barras recebidos
+                listaItens.forEach(function(item) {
+                  const codigo = typeof item === 'object' ? (item.FORNEC_LAST || item.barcode || "") : item;
+                  const codigoLimpo = codigo.toString().trim();
+                  
+                  if (codigoLimpo) {
+                    // Guarda em memória que este código é válido para conferência
+                    cacheItensRomaneio[codigoLimpo] = {
+                      conferido: false
+                    };
+                  }
+                });
+                
+                // 🌟 CRITÉRIO DE CONTADOR RECALIBRADO: Lê o tamanho total da lista bruta enviada pelo Sheets (20)
+                const totalItensPlanilha = listaItens.length;
+                
+                document.getElementById("txt-modo-perf").innerHTML = "<span style='color: #2b9348; font-weight: bold;'>🟢 Modo Local Ativo (" + totalItensPlanilha + " itens em memória)</span>";
+                console.log(" [MEMÓRIA] Romaneio sincronizado localmente. Total de registros: " + totalItensPlanilha);
+              } else {
+                alert("Erro ao baixar romaneio do servidor: " + (data.error || data.mensagem || "Desconhecido"));
+                desativarModoPerformanceManual();
+              }
+            })
+            .catch(err => {
+              console.error(err);
+              alert("Falha de rede ao tentar espelhar dados na memória da doca.");
+              desativarModoPerformanceManual();
+            });
+        }
+
 
         
         function desativarModoPerformanceManual() {
